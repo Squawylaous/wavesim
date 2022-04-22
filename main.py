@@ -24,18 +24,27 @@ class Particle:
     self.wave = wave
     self.index = len(self.wave)
     self.wave.particles.append(self)
-    self.pos = 0
-    self.neighbours = []
+    self.pos, self.prev_delta, self.delta = 0, 0, 0
+    self._neighbours = []
     if self.index > 0:
-      self.neighbours.append(self.wave.particles[self.index - 1])
+      self._neighbours.append(self.index - 1)
     if self.index < len(self.wave)-1:
-      self.neighbours.append(self.wave.particles[self.index + 1])
+      self._neighbours.append(self.index + 1)
+  
+  @property
+  def neighbours(self):
+    return [self.wave.particles[i] for i in self._neighbours]
+  
+  def update(self):
+    self.delta = sum(map(op.attrgetter("prev_delta"), self.neighbours))
+  
+  def move(self):
+    self.pos += self.delta
+    self.pos = max(min(self.pos, 0.5), -0.5)
+    self.prev_delta, self.delta = self.delta, 0
 
 
 class Wave:
-  inputs = {K_UP:(op.attrgetter("selected.pos"), 0.05), K_DOWN:(op.attrgetter("selected.pos"), -0.05),
-            K_LEFT:(op.attrgetter("_selected"), 1), K_RIGHT:(op.attrgetter("_selected"), -1)}
-  
   def __init__(self, particles):
     self.particles = []
     for _ in range(particles):
@@ -46,14 +55,21 @@ class Wave:
     return len(self.particles)
   
   def __call__(self, key):
-    try:
-      key = self.inputs[key]
-    except KeyError:
-      pass
-    else:
-      key[0](self) += key[1]
-    self._selected = self._selected+len(self)
-    
+    if key not in (K_LEFT, K_RIGHT):
+      for particle in self.particles:
+        particle.update()
+    if key == K_UP:
+      self.selected.delta = -0.05
+    elif key == K_DOWN:
+      self.selected.delta = 0.05
+    elif key == K_RIGHT:
+      self._selected += 1
+    elif key == K_LEFT:
+      self._selected -= 1
+    self._selected = (self._selected+len(self))%len(self)
+    if key not in (K_LEFT, K_RIGHT):
+      for particle in self.particles:
+        particle.move()
   
   @property
   def selected(self):
@@ -61,8 +77,12 @@ class Wave:
   
   def draw(self, surf, rect):
     for particle in self.particles:
-      pos = vector((particle.index + 0.5)/len(self.particles), particle.pos + 0.5).elementwise()*rect.size
-      pygame.draw.circle(surf, foreground, (int(pos.x), int(pos.y)), 5)
+      pos = vector((particle.index + 0.5)/len(self.particles), particle.pos + 0.5)
+      pos = pos.elementwise()*rect.size + rect.topleft
+      size = 5
+      if particle.index == self._selected:
+        size = 10
+      pygame.draw.circle(surf, foreground, (int(pos.x), int(pos.y)), size)
 
 
 wave1 = Wave(15)
@@ -79,7 +99,7 @@ while True:
       if event.key == K_ESCAPE:
         pygame.event.post(pygame.event.Event(QUIT))
       elif event.key in (K_SPACE, K_UP, K_DOWN, K_LEFT, K_RIGHT):
-        wave(event.key)
+        wave1(event.key)
   
   wave1.draw(screen, screen_rect)
   
