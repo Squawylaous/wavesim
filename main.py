@@ -1,7 +1,7 @@
-import math
 import operator as op
 from functools import partial, reduce
 from itertools import chain
+from collections import UserList
 import pygame
 from pygame.locals import *
 from pygame.math import Vector2 as vector
@@ -20,9 +20,9 @@ post_event = lambda e:pygame.event.post(pygame.event.Event(e))
 
 
 class Particle:
-  def __init__(self, wave):
+  def __init__(self, wave, index):
     self.wave = wave
-    self.index = len(self.wave)
+    self.index = index
     self.wave.particles.append(self)
     self.pos, self.prev_delta, self.delta = 0, 0, 0
     self._neighbours = []
@@ -44,15 +44,12 @@ class Particle:
     self.prev_delta, self.delta = self.delta, 0
 
 
-class Wave:
+class Wave(UserList):
   def __init__(self, particles):
-    self.particles = []
-    for _ in range(particles):
-      Particle(self)
+    self.data = range(particles)
+    super().__init__(map(partial(Particle, self), self.data))
+    print(self.data)
     self._selected = 0
-  
-  def __len__(self):
-    return len(self.particles)
   
   def __call__(self, key):
     if key not in (K_LEFT, K_RIGHT):
