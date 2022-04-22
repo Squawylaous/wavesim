@@ -20,61 +20,57 @@ post_event = lambda e:pygame.event.post(pygame.event.Event(e))
 
 
 class Particle:
-  def __init__(self, wave, index):
-    self.wave = wave
-    self.index = index
-    self.wave.particles.append(self)
-    self.pos, self.prev_delta, self.delta = 0, 0, 0
-    self._neighbours = []
+  def __init__(self, wave, index, _len=0):
+    self.wave, self.index = wave, index
+    self.wave.append(self)
+    self.held = False
+    self.pos, self.delta = 0, 0
+    self.neighbours = []
     if self.index > 0:
-      self._neighbours.append(self.index - 1)
-    if self.index < len(self.wave)-1:
-      self._neighbours.append(self.index + 1)
-  
-  @property
-  def neighbours(self):
-    return [self.wave.particles[i] for i in self._neighbours]
+      self.neighbours.append(self.wave[self.index - 1])
+      self.wave[self.index - 1].neighbours.append(self)
   
   def update(self):
-    self.delta = sum(map(op.attrgetter("prev_delta"), self.neighbours))
+    self.held = False
+    if self.neighbours:
+      self.delta = [*map(op.attrgetter("pos"), self.neighbours)]
+      self.delta = sum(self.delta)/len(self.delta)
   
   def move(self):
-    self.pos += self.delta
-    self.pos = max(min(self.pos, 0.5), -0.5)
-    self.prev_delta, self.delta = self.delta, 0
+    self.pos = max(min(self.delta, 0.5), -0.5)
 
 
 class Wave(UserList):
   def __init__(self, particles):
-    self.data = range(particles)
-    super().__init__(map(partial(Particle, self), self.data))
-    print(self.data)
+    super().__init__(map(partial(Particle, self, _len=particles), range(particles)))
     self._selected = 0
   
   def __call__(self, key):
     if key not in (K_LEFT, K_RIGHT):
-      for particle in self.particles:
+      for particle in self:
         particle.update()
     if key == K_UP:
-      self.selected.delta = -0.05
+      self.selected.delta = self.selected.pos - 0.05
     elif key == K_DOWN:
-      self.selected.delta = 0.05
+      self.selected.delta = self.selected.pos + 0.05
     elif key == K_RIGHT:
       self._selected += 1
     elif key == K_LEFT:
       self._selected -= 1
     self._selected = (self._selected+len(self))%len(self)
     if key not in (K_LEFT, K_RIGHT):
-      for particle in self.particles:
+      print(self.selected.pos, self.selected.delta)
+      self.selected.held = key != K_BACKSPACE
+      for particle in self:
         particle.move()
   
   @property
   def selected(self):
-    return self.particles[self._selected]
+    return self[self._selected]
   
   def draw(self, surf, rect):
-    for particle in self.particles:
-      pos = vector((particle.index + 0.5)/len(self.particles), particle.pos + 0.5)
+    for particle in self:
+      pos = vector((particle.index + 0.5)/len(self), particle.pos + 0.5)
       pos = pos.elementwise()*rect.size + rect.topleft
       size = 5
       if particle.index == self._selected:
@@ -95,7 +91,7 @@ while True:
     if event.type == KEYDOWN:
       if event.key == K_ESCAPE:
         pygame.event.post(pygame.event.Event(QUIT))
-      elif event.key in (K_SPACE, K_UP, K_DOWN, K_LEFT, K_RIGHT):
+      elif event.key in (K_SPACE, K_UP, K_DOWN, K_LEFT, K_RIGHT, K_BACKSPACE):
         wave1(event.key)
   
   wave1.draw(screen, screen_rect)
